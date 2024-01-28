@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Particle System Simulation</title>
+    <style>
+        #canvas {
+            background-color: #f0f0f0;
+        }
+
+        #controls {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <div id="controls">
+        <label for="gravityInput">Gravity:</label>
+        <input type="range" id="gravityInput" min="0" max="0.5" step="0.01" value="0.1">
+
+        <label for="massInput">Particle Mass:</label>
+        <input type="range" id="massInput" min="1" max="10" step="1" value="5">
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const controls = document.getElementById('controls');
+        const gravityInput = document.getElementById('gravityInput');
+        const massInput = document.getElementById('massInput');
+
+        class Particle {
+            constructor(x, y, radius, mass) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.mass = mass;
+                this.dx = (Math.random() - 0.5) * 2;
+                this.dy = (Math.random() - 0.5) * 2;
+                this.trail = [];
+            }
+
+            update(particles) {
+                this.dy += parseFloat(gravityInput.value);
+
+                for (const particle of particles) {
+                    if (particle !== this) {
+                        // Apply repulsive force between particles
+                        const distance = Math.sqrt((particle.x - this.x)**2 + (particle.y - this.y)**2);
+                        const force = (1e-5 * this.mass * particle.mass) / (distance**2);
+                        const angle = Math.atan2(particle.y - this.y, particle.x - this.x);
+
+                        this.dx += force * Math.cos(angle);
+                        this.dy += force * Math.sin(angle);
+                    }
+                }
+
+                this.x += this.dx;
+                this.y += this.dy;
+
+                if (this.x - this.radius <= 0 || this.x + this.radius >= canvas.width) {
+                    this.dx = -this.dx;
+                }
+
+                if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) {
+                    this.dy = -this.dy;
+                }
+
+                this.trail.push({ x: this.x, y: this.y });
+
+                if (this.trail.length > 30) {
+                    this.trail.shift();
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#3498db';
+                ctx.fill();
+                ctx.closePath();
+
+                for (let i = 0; i < this.trail.length; i++) {
+                    const alpha = i / this.trail.length;
+                    ctx.fillStyle = `rgba(52, 152, 219, ${alpha})`;
+                    ctx.fillRect(this.trail[i].x, this.trail[i].y, 2, 2);
+                }
+            }
+        }
+
+        const particles = [];
+
+        for (let i = 0; i < 50; i++) {
+            particles.push(new Particle(Math.random() * canvas.width, Math.random() * canvas.height, 10, 5));
+        }
+
+        let dragParticle = null;
+
+        canvas.addEventListener('mousedown', (e) => {
+            const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+            const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+
+            for (const particle of particles) {
+                const distance = Math.sqrt((mouseX - particle.x)**2 + (mouseY - particle.y)**2);
+                if (distance < particle.radius) {
+                    dragParticle = particle;
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (dragParticle) {
+                dragParticle.x = e.clientX - canvas.getBoundingClientRect().left;
+                dragParticle.y = e.clientY - canvas.getBoundingClientRect().top;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            dragParticle = null;
+        });
+
+        gravityInput.addEventListener('input', () => {
+            for (const particle of particles) {
+                particle.dy += parseFloat(gravityInput.value);
+            }
+        });
+
+        massInput.addEventListener('input', () => {
+            // Update mass for the dragged particle (if any)
+            if (dragParticle) {
+                dragParticle.mass = parseInt(massInput.value);
+            }
+        });
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (const particle of particles) {
+                particle.update(particles);
+                particle.draw();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
