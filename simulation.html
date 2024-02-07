@@ -225,6 +225,27 @@
 		}
 	}
 
+    function simulatePhysics() 
+	{
+		for (i = 0; i < physicsEnvironment.balls.length; i++) {
+			var ball1 = physicsEnvironment.balls[i];
+			ball1.simulateTimeStep(physicsEnvironment.timeStep, physicsEnvironment.gravity);
+
+			for (j = i + 1; j < physicsEnvironment.balls.length; j++) {
+				var ball2 = physicsEnvironment.balls[j];
+				handleBallToBallCollision(ball1, ball2, physicsEnvironment.restitution);
+			}
+
+			handleWallCollision(ball1, physicsEnvironment.worldSize);
+		}
+	}
+
+	function updateCanvas() {
+		simulatePhysics();
+		drawBalls();
+		requestAnimationFrame(updateCanvas);
+	}
+
 	
 
 	
