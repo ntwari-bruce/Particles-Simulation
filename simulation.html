@@ -1,151 +1,241 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Particle System Simulation</title>
-    <style>
-        #canvas {
-            background-color: #f0f0f0;
-        }
+<html>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        #controls {
-            margin-top: 10px;
-        }
-    </style>
-</head>
+	<head>
+		<title>Billiard</title>
+		<style>
+			body {
+				font-family: verdana; 
+				font-size: 15px;
+			}			
+			.button {
+				background-color: #606060;
+				border: none;
+				color: white;
+				padding: 10px 32px;
+				font-size: 16px;
+				margin: 4px 2px;
+				cursor: pointer;
+			}
+			.slider {
+				-webkit-appearance: none;
+				width: 80px;
+				height: 6px;
+				border-radius: 5px;
+				background: #d3d3d3;
+				outline: none;
+				opacity: 0.7;
+				-webkit-transition: .2s;
+				transition: opacity .2s;
+			}
+		</style>
+	</head>
+	
 <body>
-    <canvas id="canvas" width="800" height="600"></canvas>
-    <div id="controls">
-        <label for="gravityInput">Gravity:</label>
-        <input type="range" id="gravityInput" min="0" max="0.5" step="0.01" value="0.1">
 
-        <label for="massInput">Particle Mass:</label>
-        <input type="range" id="massInput" min="1" max="10" step="1" value="5">
-    </div>
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const controls = document.getElementById('controls');
-        const gravityInput = document.getElementById('gravityInput');
-        const massInput = document.getElementById('massInput');
+	<button class="button" onclick="initializeScene()">Restart</button>
+	Restitution <input type = "range" min = "0" max = "10" value = "10" id = "restitutionSlider" class = "slider">
+	<br>
+	<canvas id="myCanvas" style="border:2px solid"></canvas>
+	
+<script>
 
-        class Particle {
-            constructor(x, y, radius, mass) {
-                this.x = x;
-                this.y = y;
-                this.radius = radius;
-                this.mass = mass;
-                this.dx = (Math.random() - 0.5) * 2;
-                this.dy = (Math.random() - 0.5) * 2;
-                this.trail = [];
-            }
+	// Drawing
+	var canvasElement = document.getElementById("myCanvas");
+	var context = canvasElement.getContext("2d");
 
-            update(particles) {
-                this.dy += parseFloat(gravityInput.value);
+	canvasElement.width = window.innerWidth - 20;
+	canvasElement.height = window.innerHeight - 100;
 
-                for (const particle of particles) {
-                    if (particle !== this) {
-                        // Apply repulsive force between particles
-                        const distance = Math.sqrt((particle.x - this.x)**2 + (particle.y - this.y)**2);
-                        const force = (1e-5 * this.mass * particle.mass) / (distance**2);
-                        const angle = Math.atan2(particle.y - this.y, particle.x - this.x);
+	var simulationMinWidth = 2.0;
+	var canvasScale = Math.min(canvasElement.width, canvasElement.height) / simulationMinWidth;
+	var simulationWidth = canvasElement.width / canvasScale;
+	var simulationHeight = canvasElement.height / canvasScale;
 
-                        this.dx += force * Math.cos(angle);
-                        this.dy += force * Math.sin(angle);
-                    }
-                }
+	function scalePositionX(position) {
+		return position.x * canvasScale;
+	}
 
-                this.x += this.dx;
-                this.y += this.dy;
+	function scalePositionY(position) {
+		return canvasElement.height - position.y * canvasScale;
+	}
 
-                if (this.x - this.radius <= 0 || this.x + this.radius >= canvas.width) {
-                    this.dx = -this.dx;
-                }
+	// Vector Calculation
 
-                if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) {
-                    this.dy = -this.dy;
-                }
+	class Vector2D {
+		constructor(x = 0.0, y = 0.0) {
+			this.x = x; 
+			this.y = y;
+		}
 
-                this.trail.push({ x: this.x, y: this.y });
+		setVector(vector) {
+			this.x = vector.x; 
+			this.y = vector.y;
+		}
 
-                if (this.trail.length > 30) {
-                    this.trail.shift();
-                }
-            }
+		cloneVector() {
+			return new Vector2D(this.x, this.y);
+		}
 
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = '#3498db';
-                ctx.fill();
-                ctx.closePath();
+		addVector(vector, scalar = 1.0) {
+			this.x += vector.x * scalar;
+			this.y += vector.y * scalar;
+			return this;
+		}
 
-                for (let i = 0; i < this.trail.length; i++) {
-                    const alpha = i / this.trail.length;
-                    ctx.fillStyle = `rgba(52, 152, 219, ${alpha})`;
-                    ctx.fillRect(this.trail[i].x, this.trail[i].y, 2, 2);
-                }
-            }
-        }
+		addTwoVectors(vectorA, vectorB) {
+			this.x = vectorA.x + vectorB.x;
+			this.y = vectorA.y + vectorB.y;
+			return this;
+		}
 
-        const particles = [];
+		subtractVector(vector, scalar = 1.0) {
+			this.x -= vector.x * scalar;
+			this.y -= vector.y * scalar;
+			return this;
+		}
 
-        for (let i = 0; i < 50; i++) {
-            particles.push(new Particle(Math.random() * canvas.width, Math.random() * canvas.height, 10, 5));
-        }
+		subtractTwoVectors(vectorA, vectorB) {
+			this.x = vectorA.x - vectorB.x;
+			this.y = vectorA.y - vectorB.y;
+			return this;			
+		}
 
-        let dragParticle = null;
+		calculateLength() {
+			return Math.sqrt(this.x * this.x + this.y * this.y);
+		}
 
-        canvas.addEventListener('mousedown', (e) => {
-            const mouseX = e.clientX - canvas.getBoundingClientRect().left;
-            const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+		scaleVector(scalar) {
+			this.x *= scalar;
+			this.y *= scalar;
+		}
 
-            for (const particle of particles) {
-                const distance = Math.sqrt((mouseX - particle.x)**2 + (mouseY - particle.y)**2);
-                if (distance < particle.radius) {
-                    dragParticle = particle;
-                    break;
-                }
-            }
-        });
+		calculateDotProduct(vector) {
+			return this.x * vector.x + this.y * vector.y;
+		}
+	}
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (dragParticle) {
-                dragParticle.x = e.clientX - canvas.getBoundingClientRect().left;
-                dragParticle.y = e.clientY - canvas.getBoundingClientRect().top;
-            }
-        });
+	// Physics visualization
 
-        canvas.addEventListener('mouseup', () => {
-            dragParticle = null;
-        });
+	class BallObject {
+		constructor(radius, mass, position, velocity) {
+			this.radius = radius;
+			this.mass = mass;
+			this.position = position.cloneVector();
+			this.velocity = velocity.cloneVector();
+		}
+		simulateTimeStep(deltaTime, gravity) {
+			this.velocity.addVector(gravity, deltaTime);
+			this.position.addVector(this.velocity, deltaTime);
+		}
+	}
 
-        gravityInput.addEventListener('input', () => {
-            for (const particle of particles) {
-                particle.dy += parseFloat(gravityInput.value);
-            }
-        });
+	var physicsEnvironment = 
+	{
+		gravity : new Vector2D(0.0, 0.0),
+		timeStep : 1.0 / 60.0,
+		worldSize : new Vector2D(simulationWidth, simulationHeight),
+		isPaused: true,
+		balls: [],				
+		restitution : 1.0
+	};
 
-        massInput.addEventListener('input', () => {
-            // Update mass for the dragged particle (if any)
-            if (dragParticle) {
-                dragParticle.mass = parseInt(massInput.value);
-            }
-        });
+	function initializeScene() 
+	{
+		physicsEnvironment.balls = [];
+		var numberOfBalls = 20;
 
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+		for (i = 0; i < numberOfBalls; i++) {
 
-            for (const particle of particles) {
-                particle.update(particles);
-                particle.draw();
-            }
+			var radius = 0.03 + Math.random() * 0.1;
+			var mass = Math.PI * radius * radius;
+			var position = new Vector2D(Math.random() * simulationWidth, Math.random() * simulationHeight);
+			var velocity = new Vector2D(-1.0 + 2.0 * Math.random(), -1.0 + 2.0 * Math.random());
 
-            requestAnimationFrame(animate);
-        }
+			physicsEnvironment.balls.push(new BallObject(radius, mass, position, velocity));
+		}
+	}
 
-        animate();
-    </script>
+	// Drawing
+
+	function drawBalls() 
+	{
+		context.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+		context.fillStyle = "#0000FF";
+
+		for (i = 0; i < physicsEnvironment.balls.length; i++) {
+			var ball = physicsEnvironment.balls[i];
+			context.beginPath();			
+			context.arc(
+				scalePositionX(ball.position), scalePositionY(ball.position), canvasScale * ball.radius, 0.0, 2.0 * Math.PI); 
+			context.closePath();
+			context.fill();
+		}
+	}
+
+	// Handle collision
+	function handleBallToBallCollision(ball1, ball2, restitution) 
+	{
+		var direction = new Vector2D();
+		direction.subtractTwoVectors(ball2.position, ball1.position);
+		var distance = direction.calculateLength();
+		if (distance == 0.0 || distance > ball1.radius + ball2.radius)
+			return;
+
+		direction.scaleVector(1.0 / distance);
+
+		var correction = (ball1.radius + ball2.radius - distance) / 2.0;
+		ball1.position.addVector(direction, -correction);
+		ball2.position.addVector(direction, correction);
+
+		var velocity1 = ball1.velocity.calculateDotProduct(direction);
+		var velocity2 = ball2.velocity.calculateDotProduct(direction);
+
+		var mass1 = ball1.mass;
+		var mass2 = ball2.mass;
+
+		var newVelocity1 = (mass1 * velocity1 + mass2 * velocity2 - mass2 * (velocity1 - velocity2) * restitution) / (mass1 + mass2);
+		var newVelocity2 = (mass1 * velocity1 + mass2 * velocity2 - mass1 * (velocity2 - velocity1) * restitution) / (mass1 + mass2);
+
+		ball1.velocity.addVector(direction, newVelocity1 - velocity1);
+		ball2.velocity.addVector(direction, newVelocity2 - velocity2);
+	}
+
+	
+	function handleWallCollision(ball, worldSize) 
+	{
+		if (ball.position.x < ball.radius) {
+			ball.position.x = ball.radius;
+			ball.velocity.x = -ball.velocity.x;
+		}
+		if (ball.position.x > worldSize.x - ball.radius) {
+			ball.position.x = worldSize.x - ball.radius;
+			ball.velocity.x = -ball.velocity.x;
+		}
+		if (ball.position.y < ball.radius) {
+			ball.position.y = ball.radius;
+			ball.velocity.y = -ball.velocity.y;
+		}
+
+		if (ball.position.y > worldSize.y - ball.radius) {
+			ball.position.y = worldSize.y - ball.radius;
+			ball.velocity.y = -ball.velocity.y;
+		}
+	}
+
+	
+
+	
+	
+	initializeScene();
+	updateCanvas();
+
+	document.getElementById("restitutionSlider").oninput = function() {
+		physicsEnvironment.restitution = this.value / 10.0;
+	}
+	
+</script> 
 </body>
 </html>
